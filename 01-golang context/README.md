@@ -15,5 +15,9 @@ context提供了在``across API boundaries and between processes``传递``截止
 4. Background，生成一个empty context，没有``request-scoped value``、``deadlines``、``cancellation signals``，一般作为初始化的context，用在请求进来的时候。
 5. TODO，和Background一样，生成一个empty context。当不确定是什么类型的context的时候就使用TODO。(我没有想到对应的场景)
 
-## WithCancel
+## Context interface
+
+context包定一个Context的interface，valueCtx、cancelerCtx、timerCtx均实现了该接口。
+
+
 
