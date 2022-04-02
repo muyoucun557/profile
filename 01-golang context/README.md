@@ -1,6 +1,6 @@
 # context
 
-context提供了用于在``across API boundaries and between processes``传递``截止日期deadlines``、``取消信号cancellation signals``、``请求域的值request-scoped value``。
+context提供了在``across API boundaries and between processes``传递``截止日期deadlines``、``取消信号cancellation signals``、``请求域的值request-scoped value``的能力。
 
 不太理解的是``API boundaries and between processes``。从实际来看，是在函数之间、goroutine之间传递。
 
