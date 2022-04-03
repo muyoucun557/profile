@@ -15,6 +15,12 @@ context提供了在``across API boundaries and between processes``传递``截止
 4. Background，生成一个empty context，没有``request-scoped value``、``deadlines``、``cancellation signals``，一般作为初始化的context，用在请求进来的时候
 5. TODO，和Background一样，生成一个empty context。当不确定是什么类型的context的时候就使用TODO。(我没有想到对应的场景)
 
+## Example
+
+https://pkg.go.dev/context#example-WithValue
+https://pkg.go.dev/context#example-WithCancel
+https://pkg.go.dev/context#example-WithDeadline
+
 ## Context interface
 
 context包定一个Context的interface，valueCtx、cancelerCtx、timerCtx均实现了该接口。
@@ -155,12 +161,13 @@ func newCancelCtx(parent Context) cancelCtx {
 	return cancelCtx{Context: parent}
 }
 
-// FIXME: 这个方法很重要。这个方法主要做两件事
+// NOTE: 这个方法很重要。这个方法主要做两件事
 // 1. 如果parent ctx已经被取消了，那么立马取消child（当前ctx）
 // 2. 如果parent ctx没有被取消，那么维护一个关系，能让parent ctx在取消之后能立马取消child（当前ctx）
 //    2.1 有两种方案来维护这个关系
-//       -- 1. parent ctx中有一个map，map里存储的是它的所有的child ctx。parent ctx被取消的时候，取消map里的chold
+//       -- 1. parent ctx中有一个map，map里存储的是它的所有的child ctx。parent ctx被取消的时候，取消map里的child
 //       -- 2. 可以创建一个新的goroutine，在新goroutine中使用select监听parent ctx中的chan是否被关闭，如果被关闭那么直接取消child ctx
+//       -- 3. 为什么要做出这样的设计，因为parent ctx可能是来自于外部包实现的context，外部包实现的context不一定存储child
 // 3. 针对2种的问题，parentCancelCtx方法就是用来确定用哪个方案来维护这个关系的
 func propagateCancel(parent Context, child canceler) {
 	done := parent.Done()
@@ -200,7 +207,6 @@ func propagateCancel(parent Context, child canceler) {
 	}
 }
 
-
 func (c *cancelCtx) Value(key interface{}) interface{} {
 	if key == &cancelCtxKey {
 		return c
@@ -208,6 +214,8 @@ func (c *cancelCtx) Value(key interface{}) interface{} {
 	return c.Context.Value(key)
 }
 
+// Done返回ctx的channel
+// 且这里使用的是lazy load，这里使用了互斥锁用于保证并发安全
 func (c *cancelCtx) Done() <-chan struct{} {
 	d := c.done.Load()
 	if d != nil {
@@ -223,6 +231,9 @@ func (c *cancelCtx) Done() <-chan struct{} {
 	return d.(chan struct{})
 }
 
+// Err返回context中的err，err表示ctx被取消的原因。有表示cancelCtx的取消，有表示timerCtx的取消（达到了deadline而取消）
+// 当ctx被取消的时候，err会被赋值
+// NOTE: 这里需要注意一下，当ctx被取消之后，其err会被赋值。可以通过err是不是等于nil来判断ctx是否被取消了
 func (c *cancelCtx) Err() error {
 	c.mu.Lock()
 	err := c.err
@@ -245,24 +256,26 @@ func (c *cancelCtx) String() string {
 	return contextName(c.Context) + ".WithCancel"
 }
 
-// cancel closes c.done, cancels each of c's children, and, if
-// removeFromParent is true, removes c from its parent's children.
+// cancel，取消context
 func (c *cancelCtx) cancel(removeFromParent bool, err error) {
 	if err == nil {
 		panic("context: internal error: missing cancel error")
 	}
-	c.mu.Lock()
+	c.mu.Lock() // 为了保证并发安全，需要加锁
+  // 1. 通过err是不是为nil来判断ctx有没有被取消过。如果已经取消了直接返回
 	if c.err != nil {
 		c.mu.Unlock()
 		return // already canceled
 	}
+  // 2. lazy load channel。且关闭channel
 	c.err = err
 	d, _ := c.done.Load().(chan struct{})
 	if d == nil {
-		c.done.Store(closedchan)
+		c.done.Store(closedchan)  // closedchan是一个全局变量，一个已经被close的channel
 	} else {
 		close(d)
 	}
+  // 3. 遍历child，调用child的cancel方法，取消child
 	for child := range c.children {
 		// NOTE: acquiring the child's lock while holding parent's lock.
 		child.cancel(false, err)
@@ -294,4 +307,49 @@ func parentCancelCtx(parent Context) (*cancelCtx, bool) {
 	}
 	return p, true
 }
+
+// removeChild 将child从parent ctx的map中删除
+// 这里也用到了parentCancelCtx方法用于判断（parent child之间的联系是通过goroutine还是通过map来维护的）
+func removeChild(parent Context, child canceler) {
+	p, ok := parentCancelCtx(parent)
+	if !ok {
+		return
+	}
+	p.mu.Lock()
+	if p.children != nil {
+		delete(p.children, child)
+	}
+	p.mu.Unlock()
+}
 ```
+
+## WithDeadline
+
+``func WithDeadline(parent Context, d time.Time) (Context, CancelFunc)``
+WithDeadline返回一个含有parent contetxt的child context，且deadline是d。如果parent context的deadline比d早，那么child context的deadline和parent context的deadline一样（对于这种场景child context是一个cancelCtx实例）。
+
+带有deadline的context是通过timerCtx结构体来实现的。下面给出timerCtx的结构
+```Golang
+type timerCtx struct {
+	cancelCtx
+	timer *time.Timer // 一个定时器，达到deadline的时候会调用timerCtx的cancel函数
+
+	deadline time.Time
+}
+```
+
+## Background和TODO
+
+这两个函数返回的是全局变量，参看下面代码
+```Golang
+var (
+	background = new(emptyCtx)
+	todo       = new(emptyCtx)
+)
+```
+返回的都是emptyCtx对象。从语义上讲，这两个函数使用的场景不一样。
+Background返回的empty context，没有request-scoped value、取消信号、截止日期这些数据。一般用在context链条的最顶端，例如server接收到一个请求之后，为这个请求生成一个empty context。
+TODO返回的empty context，同样也是没有request-scoped value、取消信号、截止日期这些数据。一般不清楚使用哪个context的时候使用TODO。(真-不知道实际会有哪些场景)
+
+## Go并发模式下的Context
+可看这篇博客 https://golang.google.cn/blog/context
