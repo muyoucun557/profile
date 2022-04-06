@@ -353,5 +353,148 @@ var (
 Background返回的empty context，没有request-scoped value、取消信号、截止日期这些数据。一般用在context链条的最顶端，例如server接收到一个请求之后，为这个请求生成一个empty context。
 TODO返回的empty context，同样也是没有request-scoped value、取消信号、截止日期这些数据。一般不清楚使用哪个context的时候使用TODO。(真-不知道实际会有哪些场景)
 
+
+## 机制和原理
+
+### valueCtx的特性
+
+#### 能从context链条中向上查询value
+
+valueCtx结构体源码
+```Golang
+type valueCtx struct {
+	Context   // 通过匿名字段来实现继承
+	key, val interface{}
+}
+```
+
+WithValue如何生成一个valueCtx对象的
+```Golang
+func WithValue(parent Context, key, val interface{}) Context {
+	if parent == nil {
+		panic("cannot create context from nil parent")
+	}
+	if key == nil {
+		panic("nil key")
+	}
+	if !reflectlite.TypeOf(key).Comparable() {
+		panic("key is not comparable")
+	}
+  // Notice: 将Parent ctx作为匿名字段的值传到child ctx里
+	return &valueCtx{parent, key, val}
+}
+```
+
+valueCtx如何寻找对应的value
+```Golang
+func (c *valueCtx) Value(key interface{}) interface{} {
+  // 如果当前ctx的key就是要寻找的key，返回当前ctx的value
+	if c.key == key {
+		return c.val
+	}
+  // 如果不是，调用parent ctx的方法，寻找key
+	return c.Context.Value(key)
+}
+```
+
+### cancelCtx的特性
+
+#### 一：调用cancel函数，能取消ctx
+
+cancelCtx结构体中维护了一个chan，如果chan是关闭状态的chan，那么表示ctx是处于取消状态，如果没有不是关闭状态，那么表示ctx没有被取消。
+同时cancelCtx维护了一个叫err的字段，当cancelCtx被取消的时候，err会被赋值。
+cancelCtx提供了一个cancel函数。
+```Golang
+func (c *cancelCtx) cancel(removeFromParent bool, err error) {
+  // 1. 取消ctx必须得有一个“原因”
+	if err == nil {
+		panic("context: internal error: missing cancel error")
+	}
+  // 2. 为了并发安全，这里加了互斥锁
+  // 在关闭chan的时候，将error赋值给了ctx.err，可以通过ctx.err是否为nil来判断ctx是否被取消了
+	c.mu.Lock()
+	if c.err != nil {
+		c.mu.Unlock()
+		return // already canceled
+	}
+	c.err = err
+  // 3. 这里的chan使用的是lazy load chan，切统一使用一个全局变量closedchan
+  // 也可以生成一个新的chan，但是这样会浪费资源（使用closedchan，避免频繁的创建一个chan，节省开销）。
+	d, _ := c.done.Load().(chan struct{})
+	if d == nil {
+		c.done.Store(closedchan)
+	} else {
+		close(d)
+	}
+  // 4. 取消child ctx
+	for child := range c.children {
+		// NOTE: acquiring the child's lock while holding parent's lock.
+		child.cancel(false, err)
+	}
+	c.children = nil
+	c.mu.Unlock()
+
+	if removeFromParent {
+		removeChild(c.Context, c)
+	}
+}
+```
+
+#### 二：如果parent ctx被取消了，那么child ctx也会被取消
+
+在cancelCtx中维护了parent ctx与child ctx之间的联系，只有保持了这样的联系，才能在parent ctx被取消的时候也会取消child ctx。
+如何去维护这种联系的呢？通过两种方式去联系的。
+第一种：在parent ctx中维护一个map，用map存储所有的child ctx。
+第二种：新建一个goroutine，在这个goroutine中监视parent ctx的chan被关闭的事件。
+```Golang
+func propagateCancel(parent Context, child canceler) {
+	done := parent.Done()
+	if done == nil {
+		return // parent is never canceled
+	}
+
+	select {
+	case <-done:
+		// parent is already canceled
+		child.cancel(false, parent.Err())
+		return
+	default:
+	}
+
+  // Notice: 通过parentCancelCtx函数来判断使用那种方式维护parent ctx与child ctx。
+	if p, ok := parentCancelCtx(parent); ok {
+		p.mu.Lock()
+		if p.err != nil {
+			// parent has already been canceled
+			child.cancel(false, p.err)
+		} else {
+			if p.children == nil {
+				p.children = make(map[canceler]struct{})
+			}
+      // NOTICE: 在parent ctx中维护一个map，用map存储所有的child ctx。
+			p.children[child] = struct{}{}
+		}
+		p.mu.Unlock()
+	} else {
+		atomic.AddInt32(&goroutines, +1)
+    // NOTICE: 新建一个goroutine，在这个goroutine中监视parent ctx的chan被关闭的事件。
+		go func() {
+			select {
+			case <-parent.Done():
+				child.cancel(false, parent.Err())
+			case <-child.Done():
+			}
+		}()
+	}
+}
+```
+
+
+
+
+
+
+
+
 ## Go并发模式下的Context
 可看这篇博客 https://golang.google.cn/blog/context
