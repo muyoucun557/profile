@@ -356,9 +356,9 @@ TODO返回的empty context，同样也是没有request-scoped value、取消信�
 
 ## 机制和原理
 
-### valueCtx的特性
+### valueCtx
 
-#### 能从context链条中向上查询value
+#### 一：能从context链条中向上查询value
 
 valueCtx结构体源码
 ```Golang
@@ -397,7 +397,7 @@ func (c *valueCtx) Value(key interface{}) interface{} {
 }
 ```
 
-### cancelCtx的特性
+### cancelCtx
 
 #### 一：调用cancel函数，能取消ctx
 
@@ -472,6 +472,7 @@ func propagateCancel(parent Context, child canceler) {
 				p.children = make(map[canceler]struct{})
 			}
       // NOTICE: 在parent ctx中维护一个map，用map存储所有的child ctx。
+      // 在parent ctx调用cancel方法的时候，回调用child ctx的cancel方法
 			p.children[child] = struct{}{}
 		}
 		p.mu.Unlock()
@@ -489,11 +490,33 @@ func propagateCancel(parent Context, child canceler) {
 }
 ```
 
+### timerCtx
 
+timerCtx需要指定一个parent ctx与deadline。在cancel函数被调用、或者parent ctx的cancel会调用、或者时间到了deadline，timerCtx就会被取消。
 
+timerCtx的结构如下
+```Golang
+type timerCtx struct {
+	cancelCtx
+	timer *time.Timer // Under cancelCtx.mu.
 
-
-
+	deadline time.Time
+}
+```
+继承了cancelCtx，借助cancelCtx来实现了一但parent ctx被取消，那么child ctx也会被取消。
+同时还存在一个定时器，用于在时间到达deadline的时候，调用cancel方法。
+如果child ctx的deadline比parent ctx的deadline要晚，那么就生成child ctx的类型是cancelCtx。此时是不需要timer的，因此无需生成timerCtx类型。下面给出代码
+```Golang
+func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
+  ...
+	if cur, ok := parent.Deadline(); ok && cur.Before(d) {
+		// The current deadline is already sooner than the new one.
+		return WithCancel(parent)
+	}
+	...
+}
+```
+如果生成的是cancelCtx，那么获取的parent ctx的deadline。cancelCtx的parent ctx是timerCtx。
 
 
 ## Go并发模式下的Context
