@@ -72,7 +72,7 @@ type WaitGroup struct {
 在64bit机器中，这3个变量的顺序是 counter、waiter、sema
 在32bit机器中，这3个变量的顺序是 sema、counter、waiter
 为什么要这么做呢？
-为了节省内存，counter、waiter是作为一个64bit对象整体进行操作的，为了防止并发，使用的是atomic原子操作。在32bit机器中，atomic对一个64bit对象进行操作的时候，必须要求这个对象的地址是64bit对齐的（https://pkg.go.dev/sync/atomic#pkg-note-BUG）。
+为了节省内存，counter、waiter是作为一个64bit对象整体进行操作的，为了防止并发，使用的是atomic原子操作。在32bit机器中，atomic对一个64bit对象进行操作的时候，必须要求这个对象的地址是64bit对齐的（https://pkg.go.dev/sync/atomic#pkg-note-BUG）https://xargin.com/。
 
 ## Add方法
 
