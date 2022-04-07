@@ -78,6 +78,7 @@ type WaitGroup struct {
 
 ```Golang
 func (wg *WaitGroup) Add(delta int) {
+  // 获取计数器的地址和信号量的地址
 	statep, semap := wg.state()
 	if race.Enabled {
 		_ = *statep // trigger nil deref early
@@ -89,6 +90,7 @@ func (wg *WaitGroup) Add(delta int) {
 		defer race.Enable()
 	}
 	state := atomic.AddUint64(statep, uint64(delta)<<32)
+  // 分别得到counter的值和waiter的值
 	v := int32(state >> 32)
 	w := uint32(state)
 	if race.Enabled && delta > 0 && v == int32(delta) {
@@ -97,12 +99,15 @@ func (wg *WaitGroup) Add(delta int) {
 		// several concurrent wg.counter transitions from 0.
 		race.Read(unsafe.Pointer(semap))
 	}
+  // 不允许counter计数器小于0
 	if v < 0 {
 		panic("sync: negative WaitGroup counter")
 	}
+  // Wait和Add并发调用了，不允许这种情况发生
 	if w != 0 && delta > 0 && v == int32(delta) {
 		panic("sync: WaitGroup misuse: Add called concurrently with Wait")
 	}
+
 	if v > 0 || w == 0 {
 		return
 	}
@@ -111,11 +116,13 @@ func (wg *WaitGroup) Add(delta int) {
 	// - Adds must not happen concurrently with Wait,
 	// - Wait does not increment waiters if it sees counter == 0.
 	// Still do a cheap sanity check to detect WaitGroup misuse.
+  // 在最后一次调用Add(-1)的时候，也就是v==0的时候且存在waiting groutine的时候，会走到这里
 	if *statep != state {
 		panic("sync: WaitGroup misuse: Add called concurrently with Wait")
 	}
 	// Reset waiters count to 0.
 	*statep = 0
+  // 循环调用runtime_Semrelease，释放信号量，让waiting goroutine继续执行
 	for ; w != 0; w-- {
 		runtime_Semrelease(semap, false, 0)
 	}
