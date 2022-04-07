@@ -133,11 +133,13 @@ func (wg *WaitGroup) Add(delta int) {
 ```Golang
 // Wait blocks until the WaitGroup counter is zero.
 func (wg *WaitGroup) Wait() {
+  // 获取计数器和信号量地址
 	statep, semap := wg.state()
 	if race.Enabled {
 		_ = *statep // trigger nil deref early
 		race.Disable()
 	}
+  // 自旋锁
 	for {
 		state := atomic.LoadUint64(statep)
 		v := int32(state >> 32)
@@ -159,7 +161,8 @@ func (wg *WaitGroup) Wait() {
 				// otherwise concurrent Waits will race with each other.
 				race.Write(unsafe.Pointer(semap))
 			}
-			runtime_Semacquire(semap)
+      // 将当前goroutine加入到信号量的等待队列中，且一直阻塞
+			runtime_Semacquire(semap) // Add方法在释放信号量之前，将statep置为了0
 			if *statep != 0 {
 				panic("sync: WaitGroup is reused before previous Wait has returned")
 			}
