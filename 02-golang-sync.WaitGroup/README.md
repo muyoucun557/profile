@@ -67,16 +67,30 @@ type WaitGroup struct {
 	state1 [3]uint32
 }
 ```
-上面是WaitGroup的结构体，state1字段是计数器。state1是一个包含3个uint32元素的数组，其中不仅存储了计数器，还存储了信号量对应的地址。每个计数器的长度是32bit。
+上面是WaitGroup的结构体，state1字段是计数器。``state1是一个包含3个uint32元素的数组``，其中不仅存储了计数器，还存储了信号量对应的地址。每个计数器的长度是32bit。
 为了节省内存，两个计数器放在一起的（内存对齐）。
 在64bit机器中，这3个变量的顺序是 counter、waiter、sema
 在32bit机器中，这3个变量的顺序是 sema、counter、waiter
-为什么要这么做呢？
-为了节省内存，counter、waiter是作为一个64bit对象整体进行操作的，为了防止并发，使用的是atomic原子操作。在32bit机器中，atomic对一个64bit对象进行操作的时候，必须要求这个对象的地址是64bit对齐的（https://pkg.go.dev/sync/atomic#pkg-note-BUG）https://xargin.com/。
-关于节省内存的代码可以参看[align.go](./align.go)
+
+``从这里可以看出：``
+1. counter和waiter在内存空间上是相邻的
+2. sema与【counter和waiter】在内存空间上相邻的
+
+``为什么counter和waiter在内存空间上是相邻的？``
+counter和waiter的操作需要保证是原子操作，可以通过加锁来实现，但是加锁开销大。可以使用atomic提供的原子操作来实现，此时需要将counter和waiter分配在一起。
+
+``为什么counter和waiter的操作要保持原子性？``
+和WaitGroup的实现原理有关系，后面会给出解释
+
+``为什么在不同的机器上sema与【counter和waiter】的顺序要保证不同？``
+为了保证【counter和waiter】64bit对齐，这两个计数器要使用aotmic进行操作，在32bit机器上，对没有对齐的64bit数据进行原子操作，存在bug。官方文档中指出了这个bug https://pkg.go.dev/sync/atomic#pkg-note-BUG。
+
+``为什么sema与【counter和waiter】内存要分配在一起？``
+
+
+
 
 ## Add方法
-
 ```Golang
 func (wg *WaitGroup) Add(delta int) {
   // 获取计数器的地址和信号量的地址
@@ -105,6 +119,8 @@ func (wg *WaitGroup) Add(delta int) {
 		panic("sync: negative WaitGroup counter")
 	}
   // Wait和Add并发调用了，不允许这种情况发生
+  // v==delta，其实可以表示是第一次调用Add
+  // w!=0，表示Wait方法被调用了，不允许并发调用
 	if w != 0 && delta > 0 && v == int32(delta) {
 		panic("sync: WaitGroup misuse: Add called concurrently with Wait")
 	}
@@ -176,4 +192,17 @@ func (wg *WaitGroup) Wait() {
 	}
 }
 ```
+
+## 实现原理
+
+Add方法和Wait方法维护了两个计数器，一个是counter一个是waiter。counter表示还剩多少个goroutine需要finish，waiter表示有多少个goroutine在等待。
+
+Add方法改变counter，一旦发现counter为0，则释放信号量，唤醒等待的goroutine。
+Wait方法改变waiter，让当前goroutine加入到信号量的等待队列中。
+
+Wait方法中会针对waiter计数器做自增，为了防止并发，采用了CAS来防止并发。同时，如果所有的goroutine都finish了，此时Wait方法应该直接返回，此时也需要保证counter计数器的不能并发。``那么因此counter和waiter是需要保证原子操作的``。
+
+## 总结
+
+无锁机制提高性能（waiter+waiter内存分配在一起）
 
