@@ -1,5 +1,6 @@
 记录一些我所学的和所做的，当作我的个人简介
 
+006. [mysql如何保证主备一致](./06-mysql如何保证主备一致/README.md)
 005. [分库分表实践](./05-分库分表实践/README.md)
 004. [mysql-读写分离架构](./04-mysql-读写分离架构/README.md)
 003. [golang sync.Mutex原理](./03-golang-sync.Mutex/README.md)
