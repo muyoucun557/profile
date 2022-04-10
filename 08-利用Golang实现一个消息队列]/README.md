@@ -65,4 +65,32 @@ func (self *freeLockQueue) Pop() interface{} {
 }
 ```
 
+## 如果Goroutine在OPERATION A之后，会无故挂起，那么怎么办？
+在Golang不知道会不会存在这种情况，如果是C++或者JAVA编写的程序可能会出现这种情况。操作系统线程调度，高优先级的会抢占低优先级的。
 
+如果一旦挂起，那么OPERATION B会等到goroutine唤醒之后才会执行，在这段时间内其他goroutine在执行OPERATION A的时候，会陷入循环。此时队列会陷入阻塞状态。
+
+为了防止这种情况发生，应当从tail向后遍历，直到tail->next为nil，然后再进行CAS操作。
+
+```Go
+// 向队列里增加一个元素
+// 向尾部追加
+func (self *freeLockQueue) Push(v interface{}) {
+	newRecord := unsafe.Pointer(&node{v, nil})
+	var tail unsafe.Pointer
+	for {
+		tail = self.tail
+		if (*node)(tail).next != nil {
+			tail = (*node)(tail).next
+		}
+
+		// CAS操作：判断tail.next是否为nil，如果为nil，那么将newRecord赋值给tail.next
+		if atomic.CompareAndSwapPointer(&(*node)(tail).next, nil, newRecord) {
+			break
+		}
+	}
+	atomic.CompareAndSwapPointer(&self.tail, tail, newRecord) // OPERATION C
+}
+```
+
+在这里需要注意一下OPERATION B，因为存在goroutine无故阻塞，那么这里需要用CAS。
