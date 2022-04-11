@@ -1,5 +1,6 @@
 记录一些我所学的和所做的，当作我的个人简介
 
+010. [内存模型](./010-Golang内存模型]/README.md)
 009. [sync.Map](./009-sync.Map]/README.md)
 008. [利用Golang实现一个消息队列](./008-利用Golang实现一个消息队列]/README.md)
 007. [mysql高可用架构中数据一致性问题](./007-mysql高可用架构中数据一致性问题/README.md)
