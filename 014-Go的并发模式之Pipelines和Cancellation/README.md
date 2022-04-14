@@ -88,4 +88,22 @@ func merge(cs ...<-chan int) <-chan int {
 1. 当发送工作全部完成之后，stage关闭它们的输出channel(outbound channel)
 2. stage一直从输入channel中读取数据直到这些channel被关闭
    
-   
+## Explicit cancellation
+
+当main函数决定离开，也就意味着不再接收来自上游的数据，那么main函数需要通知上游函数禁止传输数据。
+```Go
+func main() {
+  done := make(chan struct{})
+  defer close(done)
+
+  in := gen(done,1,2,3)
+  c1 := sq(done, in)
+  c2 := sq(done, in)
+  
+  out := merge(done, c1, c2)
+  for n := range out {
+    fmt.Println(n)
+  }
+  
+}
+```
