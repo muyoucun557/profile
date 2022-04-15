@@ -1,6 +1,6 @@
 记录一些我所学的和所做的，当作我的个人简介
 
-015. [Mysql分库分表模式](./015-Mysql分库分表/README.md)
+015. [网关和网关限流](./015-网关和网关限流/README.md)
 014. [Go的并发模式之Pipelines和Cancellation](./014-Go的并发模式之Pipelines和Cancellation/README.md)
 013. [Go的并发模式之context](./013-Go的并发模式之context/README.md)
 012. [pprof](./012-pprof/README.md)
