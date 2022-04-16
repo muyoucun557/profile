@@ -17,9 +17,5 @@ API GateWay的好处是能解决上面的三个问题，同时也会带来一些
 1. 网络请求增加了亿条，增加了消耗
 2. 增加一层，增加了系统的复杂度
 
-## GoKu API Gateway
-中文名称叫悟空网关，是一个使用Go开发的网关服务。<https://github.com/eolinker/goku_lite/blob/master/README_CN.md>
-它实现了HTTP API转发、多租户管理、API访问权限控制等目的。拥有强大的自定义插件系统进行扩展，并提供友好的图形化配置界面。
-
-官网提供了部署指南<https://op-help.eolink.com/#/tutorial/?groupID=c-376&productID=19>
+## 
 
