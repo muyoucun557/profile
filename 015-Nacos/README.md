@@ -83,6 +83,9 @@ docker run --name nacos -d -p 8848:8848 -e MODE=standalone -e PREFER_HOST_MODE=h
 解决方案
 原因是container中的root只是一个普通用户，不具备真正的root权限。右边文件给出了3中解决方案<https://blog.csdn.net/u012326462/article/details/81038446>
 
+FIXME: 遗憾的是上面的操作在我们本机进行验证的时候，nacos并没有使用mysql作为数据源。后来采用了环境变量的形式配置了mysql数据源，且生效了。下面给出docker命令
+``docker run --name nacos -d -p 8848:8848 -e MODE=standalone -e PREFER_HOST_MODE=hostname -e SPRING_DATASOURCE_PLATFORM=mysql -e MYSQL_SERVICE_HOST=你的mysql-host -e MYSQL_SERVICE_PORT=3306 -e MYSQL_SERVICE_DB_NAME=nacos -e MYSQL_SERVICE_USER=aliyun -e MYSQL_SERVICE_PASSWORD=pwd -v /opt/docker_volumn/nacos/logs:/home/nacos/logs nacos/nacos-server``
+
 ## Nacos的一般使用
 
 ### 配置命名空间
@@ -250,3 +253,4 @@ func TestRegisterAndDiscovery(t *testing.T) {
 我的看法是，从实现机制上看我觉得是OK的。
 从代码可读性上看，是否友好？
 从性能上看，注册接口的性能开销是否小。
+

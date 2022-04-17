@@ -1,6 +1,8 @@
 记录一些我所学的和所做的，当作我的个人简介
 
-016. [网关和网关限流](./016-网关和网关限流/README.md)
+018. [redis的pipeline和事务](./018-redis的pipeline和事务/README.md)
+017. [网关和网关限流](./017-网关和网关限流/README.md)
+016. [限流](./016-限流、降级、熔断/README.md)
 015. [Nacos](./015-Nacos/README.md)
 014. [Go的并发模式之Pipelines和Cancellation](./014-Go的并发模式之Pipelines和Cancellation/README.md)
 013. [Go的并发模式之context](./013-Go的并发模式之context/README.md)
