@@ -1,5 +1,6 @@
 记录一些我所学的和所做的，当作我的个人简介
 
+020. [逃逸分析](./020-GoGC/README.md)
 019. [逃逸分析](./019-逃逸分析/README.md)
 018. [redis的pipeline和事务](./018-redis的pipeline和事务/README.md)
 017. [网关和网关限流](./017-网关和网关限流/README.md)
