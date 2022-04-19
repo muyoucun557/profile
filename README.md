@@ -1,5 +1,7 @@
 记录一些我所学的和所做的，当作我的个人简介
 
+020. [逃逸分析](./020-GoGC/README.md)
+019. [逃逸分析](./019-逃逸分析/README.md)
 018. [redis的pipeline和事务](./018-redis的pipeline和事务/README.md)
 017. [网关和网关限流](./017-网关和网关限流/README.md)
 016. [限流](./016-限流、降级、熔断/README.md)
@@ -7,10 +9,10 @@
 014. [Go的并发模式之Pipelines和Cancellation](./014-Go的并发模式之Pipelines和Cancellation/README.md)
 013. [Go的并发模式之context](./013-Go的并发模式之context/README.md)
 012. [pprof](./012-pprof/README.md)
-011. [DDL](./011-DDL]/README.md)
-010. [内存模型](./010-Golang内存模型]/README.md)
-009. [sync.Map](./009-sync.Map]/README.md)
-008. [利用Golang实现一个消息队列](./008-利用Golang实现一个消息队列]/README.md)
+011. [DDL](./011-DDL/README.md)
+010. [内存模型](./010-Golang内存模型/README.md)
+009. [sync.Map](./009-sync.Map/README.md)
+008. [利用Golang实现一个消息队列](./008-利用Golang实现一个消息队列/README.md)
 007. [mysql高可用架构中数据一致性问题](./007-mysql高可用架构中数据一致性问题/README.md)
 006. [mysql如何保证主备一致](./006-mysql如何保证主备一致/README.md)
 005. [分库分表实践](./005-分库分表实践/README.md)
