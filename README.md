@@ -1,5 +1,6 @@
 记录一些我所学的和所做的，当作我的个人简介
 
+024. [加密算法](./024-加密算法/README.md)
 023. [JWT](./023-JWT/README.md)
 022. [Go-Tool](./022-Go-Tool/README.md)
 021. [PG](./021-PG/README.md)

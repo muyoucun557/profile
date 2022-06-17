@@ -16,10 +16,16 @@ JSON Web Token (JWT)是一个开放标准(RFC 7519)，它定义了一种紧凑�
 ## 结构
 header + payload + signature
 由上面三部分组成，中间使用.连接，形式:``header.payload.signature``。
+其中header和payload都是json字符串然后进行base64编码。
 
 header中包含typ和alg。typ是``JWT``（不知道是不是固定值）, alg是签名算法。
 使用base64对header(json字符串形式)进行编码就得到第一部分。
 
 payload
+payload中包含你想要存储的数据（这些数据官方称为claims），例如username等任何你想存储的数据。claims有三种，分为``registered``、``public``、``private``。
+registered类型的是预先定义的（rfc协议预定好了），例如exp就表示过期时间，aud表示audience等等。
+public是没看懂，原文是These can be defined at will by those using JWTs. But to avoid collisions they should be defined in the IANA JSON Web Token Registry or be defined as a URI that contains a collision resistant namespace.
+private是自定义的。
 
+signature是签名。
 
